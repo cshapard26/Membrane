@@ -19,9 +19,10 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
     }
 
     address private membraneHostOwner;
-    bytes serverPublicKey;
+    bytes public serverPublicKey;
     bool private commitReceived = false;
     Dataload private userData;
+    address[] private approvedReceivers;
     
 
     // Chainlink variables
@@ -48,9 +49,25 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
         _;
     }
 
+    modifier canAccessData(address requester) {
+        bool shouldExecute;
+        for (uint i = 0; i < approvedReceivers.length; i++) {
+            if (approvedReceivers[i] == requester) {
+                shouldExecute = true;
+            } 
+        }
+        shouldExecute = false;
+        require(shouldExecute, "This address is not allowed to access the data.");
+        _;
+    }
+
     modifier commitIsReceived() {
         require(commitReceived == true, "Commit not yet received.");
         _;
+    }
+
+    function addApprovedReceiver(address receiver) public isOwner{
+        approvedReceivers.push(receiver);
     }
 
     function changeOwner(address newOwner) public isOwner {
