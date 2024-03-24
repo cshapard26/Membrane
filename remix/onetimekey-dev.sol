@@ -38,4 +38,8 @@ contract OneTimeKey {
     function getKeyStatus(address _user) public view returns (bool) {
         return keyUsed[keys[_user]];
     }
+
+    function displayKey(address _user) public view returns (bytes32) {
+        return keys[_user];
+    }
 }
