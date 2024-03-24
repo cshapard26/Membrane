@@ -11,7 +11,14 @@ contract OneTimeKeyTest {
     OneTimeKey KeyStorage;
 
     function beforeAll () public {
+        console.log("Running beforeAll");
+        KeyStorage = new OneTimeKey();
         KeyStorage.issueKey(msg.sender, instituteKey);
+    }
+
+    function returnDisplayKey() public view returns (bytes32) {
+        bytes32 bigData = KeyStorage.displayKey(msg.sender);
+        return bigData;
     }
     
     function checkKeyUse() public {
@@ -19,5 +26,6 @@ contract OneTimeKeyTest {
         Assert.equal(KeyStorage.getKeyStatus(msg.sender), false, "Key should not be used yet.");
         KeyStorage.useKey(instituteKey);
         Assert.equal(KeyStorage.getKeyStatus(msg.sender), true, "Key should have been used.");
+        console.log("Success!");
     }
 }
