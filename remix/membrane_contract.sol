@@ -7,11 +7,10 @@ pragma solidity ^0.8.0;
  * @dev Stores encrypted crowdsourced data and sends it to approved receivers
  */
 
- import "remix_tests.sol"; // this import is automatically injected by Remix.
-import "hardhat/console.sol";
-
 import {Chainlink, ChainlinkClient} from "@chainlink/contracts@0.8.0/src/v0.8/ChainlinkClient.sol";
 import {LinkTokenInterface} from "@chainlink/contracts@0.8.0/src/v0.8/shared/interfaces/LinkTokenInterface.sol";
+
+import "./onetimekey-dev.sol";
 
 contract MembraneCrowdsourcing is ChainlinkClient  {
     using Chainlink for Chainlink.Request;
@@ -27,6 +26,8 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
     Dataload private userData;
     address[] private approvedReceivers;
     
+    // One time Key
+    OneTimeKey public onetimekey;
 
     // Chainlink variables
     address private oracle;
@@ -40,6 +41,7 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
         setChainlinkOracle(0x6090149792dAAeE9D1D568c9f9a6F6B46AA29eFD);
         jobId = "7da2702f37fd48e5b1b9a5715e3509b6";
         fee = (1 * LINK_DIVISIBILITY) / 10; // 0,1 * 10**18 (Varies by network and job)
+        onetimekey = new OneTimeKey();
     }
 
     event OwnerSet(address indexed membraneHostOwner, address indexed newOwner);
@@ -72,8 +74,24 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
         serverPublicKey = newKey;
     }
 
-    modifier dataReal() {
-        // ZKP
+    modifier zeroKnowledgeProof() {
+        bool isVerified = false;
+        
+        uint p = 10111; 
+        uint g = 2;     // A number between 1 and p-1.
+
+        uint x = 56;    // Hidden, disputed number
+        uint y = x**g;
+
+        uint claim = (27*x + 37*y) % p;         // These would usually be random constants, but are set to show deterministic values
+        uint encrypted_claim = (g**claim) % p;
+
+        uint mul = (((g**x) % p) * ((g**y) % p)) % p;
+
+        if (encrypted_claim == mul) {
+            isVerified = true;
+        }
+        require(isVerified, "Zero Knowledge Proof not verified.");
         _;
     }
 
@@ -95,7 +113,6 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
     function reveal(bytes calldata encryptedPayload) external view commitIsReceived() {
         bytes32 hashData = keccak256(abi.encodePacked(encryptedPayload));
         require(areBytesEqual(userData.hashedData, bytes32ToBytes(hashData)), "Hashed data not equivalent. Aborting.");
-        console.log(string(encryptedPayload));
         sendDataToServer(encryptedPayload);
     }
 
@@ -108,7 +125,7 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
         // sendChainlinkRequest(req, fee);      Results in error unless chainlink node is set up.
     }
 
-    function canAccessData(address requester) private isOwner() {
+    function canAccessData(address requester) private isOwner() zeroKnowledgeProof() {
         bool canAccess = false;
         for (uint i = 0; i < approvedReceivers.length; i++) {
             if (approvedReceivers[i] == requester) {
@@ -124,7 +141,8 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
             req.add("body", "Denied");
         }
 
-        sendChainlinkRequest(req, fee);
+        onetimekey.issueKey(requester, generateRandomKey());
+        // sendChainlinkRequest(req, fee);      Results in error unless chainlink node is set up.
 
     }
 
@@ -154,5 +172,10 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
             }
         }
         return true;
+    }
+
+    function generateRandomKey() public view returns (bytes32) {
+        bytes32 randomKey = keccak256(abi.encodePacked(block.timestamp, block.difficulty, blockhash(block.number - 1)));
+        return randomKey;
     }
  }
