@@ -1,7 +1,3 @@
-# Membrane
-## A solution to data security in crowdsourcing wireless data
-
-```mermaid
 sequenceDiagram
 	participant A as Client
 	participant B as Smart Contract
@@ -35,5 +31,4 @@ sequenceDiagram
 	else Denied
 		C --> E: Abort
 	end
-
-```
+	
