@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 contract OneTimeKey {
     address owner;
     mapping(address => bytes32) private keys;
-    mapping(address => bool) public keyUsed;
+    mapping(bytes32 => bool) public keyUsed;
 
     event KeyIssued(address indexed to, bytes32 key);
     event KeyUsed(address indexed by, bytes32 key);
@@ -26,8 +26,8 @@ contract OneTimeKey {
 
     function useKey(bytes32 _key) public {
         require(keys[msg.sender] == _key, "Invalid key");
-        require(!keyUsed[msg.sender], "Key already used");
-        keyUsed[msg.sender] = true;
+        require(!keyUsed[_key], "Key already used");
+        keyUsed[_key] = true;
 
         emit KeyUsed(msg.sender, _key);
 
@@ -36,6 +36,6 @@ contract OneTimeKey {
     }
 
     function getKeyStatus(address _user) public view returns (bool) {
-        return keyUsed[_user];
+        return keyUsed[keys[_user]];
     }
 }
