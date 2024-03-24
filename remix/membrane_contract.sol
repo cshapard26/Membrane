@@ -7,6 +7,9 @@ pragma solidity ^0.8.0;
  * @dev Stores encrypted crowdsourced data and sends it to approved receivers
  */
 
+ import "remix_tests.sol"; // this import is automatically injected by Remix.
+import "hardhat/console.sol";
+
 import {Chainlink, ChainlinkClient} from "@chainlink/contracts@0.8.0/src/v0.8/ChainlinkClient.sol";
 import {LinkTokenInterface} from "@chainlink/contracts@0.8.0/src/v0.8/shared/interfaces/LinkTokenInterface.sol";
 
@@ -14,12 +17,12 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
     using Chainlink for Chainlink.Request;
 
     struct Dataload {
-        bytes32 hashedData;
-        bytes32 hashedApprovedRecipients;
+        bytes hashedData;
+        bytes hashedApprovedRecipients;
     }
 
     address private membraneHostOwner;
-    bytes public serverPublicKey;
+    string public serverPublicKey;
     bool public commitReceived = false;
     Dataload private userData;
     address[] private approvedReceivers;
@@ -40,8 +43,8 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
     }
 
     event OwnerSet(address indexed membraneHostOwner, address indexed newOwner);
-    event KeyChange(bytes oldKey, bytes newKey, address indexed changer);
-    event DataSubmit(address indexed user, bytes32 hashedData);
+    event KeyChange(string oldKey, string newKey, address indexed changer);
+    event DataSubmit(address indexed user, bytes hashedData);
     event DataTransferReceipt(address indexed user, string Chainlinkresponse);
     event DataToInstitutionReceipt(address indexed user, string Chainlinkresponse);
 
@@ -64,7 +67,7 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
         membraneHostOwner = newOwner;
     }
 
-    function setServerPublicKey(bytes calldata newKey) public isOwner() {
+    function setServerPublicKey(string calldata newKey) public isOwner() {
         emit KeyChange(serverPublicKey, newKey, msg.sender);
         serverPublicKey = newKey;
     }
@@ -74,11 +77,11 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
         _;
     }
 
-    function getServerPublicKey() external view returns (bytes memory){
+    function getServerPublicKey() external view returns (string memory){
         return serverPublicKey;       // Return the address for public key encryption
     }
 
-    function commit(bytes32 _encryptedData, bytes32 _encryptedApprovedRecipients) external {
+    function commit(bytes memory _encryptedData, bytes calldata _encryptedApprovedRecipients) external {
         userData.hashedApprovedRecipients = _encryptedApprovedRecipients;
         userData.hashedData = _encryptedData;
         emit DataSubmit(msg.sender, userData.hashedData);
@@ -89,20 +92,20 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
         return commitReceived;
     }
 
-    function reveal(bytes calldata encryptedPayload) external commitIsReceived() {
+    function reveal(bytes calldata encryptedPayload) external view commitIsReceived() {
         bytes32 hashData = keccak256(abi.encodePacked(encryptedPayload));
-        require(userData.hashedData == hashData, "Hashed data not equivalent. Aborting.");
+        require(areBytesEqual(userData.hashedData, bytes32ToBytes(hashData)), "Hashed data not equivalent. Aborting.");
+        console.log(string(encryptedPayload));
         sendDataToServer(encryptedPayload);
     }
 
-    function sendDataToServer(bytes memory _encryptedPayload) private isOwner() {
+    function sendDataToServer(bytes memory _encryptedPayload) private view isOwner() {
         // Upload to file
         Chainlink.Request memory req = buildChainlinkRequest(jobId, address(this), this.dataTransferCallback.selector);
         req.add("url", "https://ipfs.example.com/api");     // SET API HERE
         req.add("method", "PUT");
         req.add("body", string(_encryptedPayload));
-
-        sendChainlinkRequest(req, fee);
+        // sendChainlinkRequest(req, fee);      Results in error unless chainlink node is set up.
     }
 
     function canAccessData(address requester) private isOwner() {
@@ -131,5 +134,25 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
 
     function dataToInstitutionCallback() public {
         emit DataToInstitutionReceipt(msg.sender, "Success!");
+    }
+
+    function bytes32ToBytes(bytes32 data) public pure returns (bytes memory) {
+        bytes memory result = new bytes(32);
+        assembly {
+            mstore(add(result, 32), data)
+        }
+        return result;
+    }
+
+    function areBytesEqual(bytes memory a, bytes memory b) public pure returns (bool) {
+        if (a.length != b.length) {
+            return false;
+        }
+        for (uint i = 0; i < a.length; i++) {
+            if (a[i] != b[i]) {
+                return false;
+            }
+        }
+        return true;
     }
  }
