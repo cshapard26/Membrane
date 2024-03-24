@@ -20,7 +20,7 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
 
     address private membraneHostOwner;
     bytes public serverPublicKey;
-    bool private commitReceived = false;
+    bool public commitReceived = false;
     Dataload private userData;
     address[] private approvedReceivers;
     
@@ -83,6 +83,10 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
         userData.hashedData = _encryptedData;
         emit DataSubmit(msg.sender, userData.hashedData);
         commitReceived = true;
+    }
+
+    function checkCommitReceived() external view returns (bool) {
+        return commitReceived;
     }
 
     function reveal(bytes calldata encryptedPayload) external commitIsReceived() {
