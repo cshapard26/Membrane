@@ -43,6 +43,7 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
     event KeyChange(bytes oldKey, bytes newKey, address indexed changer);
     event DataSubmit(address indexed user, bytes32 hashedData);
     event DataTransferReceipt(address indexed user, string Chainlinkresponse);
+    event DataToInstitutionReceipt(address indexed user, string Chainlinkresponse);
 
     modifier isOwner() {
         require(msg.sender == membraneHostOwner, "Only the owner has access to this function");
@@ -125,6 +126,6 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
     }
 
     function dataToInstitutionCallback() public {
-        emit DataTransferReceipt(msg.sender, "Success!");
+        emit DataToInstitutionReceipt(msg.sender, "Success!");
     }
  }
