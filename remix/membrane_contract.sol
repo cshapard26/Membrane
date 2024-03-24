@@ -49,18 +49,6 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
         _;
     }
 
-    modifier canAccessData(address requester) {
-        bool shouldExecute;
-        for (uint i = 0; i < approvedReceivers.length; i++) {
-            if (approvedReceivers[i] == requester) {
-                shouldExecute = true;
-            } 
-        }
-        shouldExecute = false;
-        require(shouldExecute, "This address is not allowed to access the data.");
-        _;
-    }
-
     modifier commitIsReceived() {
         require(commitReceived == true, "Commit not yet received.");
         _;
@@ -110,10 +98,33 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
         req.add("body", string(_encryptedPayload));
 
         sendChainlinkRequest(req, fee);
+    }
+
+    function canAccessData(address requester) private isOwner() {
+        bool canAccess = false;
+        for (uint i = 0; i < approvedReceivers.length; i++) {
+            if (approvedReceivers[i] == requester) {
+                canAccess = true;
+            } 
+        }
+        Chainlink.Request memory req = buildChainlinkRequest(jobId, address(this), this.dataToInstitutionCallback.selector);
+        req.add("url", "https://ipfs.example.com/api");     // SET API HERE
+        req.add("method", "PUT");
+        if (canAccess) {
+            req.add("body", "Approved");
+        } else {
+            req.add("body", "Denied");
+        }
+
+        sendChainlinkRequest(req, fee);
 
     }
 
     function dataTransferCallback() public {
+        emit DataTransferReceipt(msg.sender, "Success!");
+    }
+
+    function dataToInstitutionCallback() public {
         emit DataTransferReceipt(msg.sender, "Success!");
     }
  }
