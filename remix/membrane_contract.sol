@@ -119,7 +119,7 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
     function sendDataToServer(bytes memory _encryptedPayload) private view isOwner() {
         // Upload to file
         Chainlink.Request memory req = buildChainlinkRequest(jobId, address(this), this.dataTransferCallback.selector);
-        req.add("url", "https://ipfs.example.com/api");     // SET API HERE
+        req.add("url", "QmXXXXXXX");     // SET QM Hash here
         req.add("method", "PUT");
         req.add("body", string(_encryptedPayload));
         // sendChainlinkRequest(req, fee);      Results in error unless chainlink node is set up.
@@ -133,7 +133,7 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
             } 
         }
         Chainlink.Request memory req = buildChainlinkRequest(jobId, address(this), this.dataToInstitutionCallback.selector);
-        req.add("url", "https://ipfs.example.com/api");     // SET API HERE
+        req.add("url", "QmXXXXXXX");     // SET QM Hash here
         req.add("method", "PUT");
         if (canAccess) {
             req.add("body", "Approved");
@@ -175,7 +175,7 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
     }
 
     function generateRandomKey() public view returns (bytes32) {
-        bytes32 randomKey = keccak256(abi.encodePacked(block.timestamp, block.difficulty, blockhash(block.number - 1)));
+        bytes32 randomKey = keccak256(abi.encodePacked(block.timestamp, block.prevrandao, blockhash(block.number - 1)));
         return randomKey;
     }
  }
