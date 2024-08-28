@@ -10,7 +10,7 @@ pragma solidity ^0.8.0;
 import {Chainlink, ChainlinkClient} from "@chainlink/contracts@0.8.0/src/v0.8/ChainlinkClient.sol";
 import {LinkTokenInterface} from "@chainlink/contracts@0.8.0/src/v0.8/shared/interfaces/LinkTokenInterface.sol";
 
-import "./onetimekey-dev.sol";
+import "./onetimekey.sol";
 
 contract MembraneCrowdsourcing is ChainlinkClient  {
     using Chainlink for Chainlink.Request;
@@ -22,9 +22,10 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
 
     address private membraneHostOwner;
     string public serverPublicKey;
-    bool public commitReceived = false;
+    uint256 public commitReceived = 1;
     Dataload private userData;
-    address[] private approvedReceivers;
+    mapping(address => bool) private approvedReceivers;
+    uint256 private approvedReceiversCount;
     
     // One time Key
     OneTimeKey public onetimekey;
@@ -56,95 +57,100 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
     }
 
     modifier commitIsReceived() {
-        require(commitReceived == true, "Commit not yet received.");
+        require(commitReceived == 1, "Commit not yet received.");
         _;
     }
 
-    function addApprovedReceiver(address receiver) public isOwner{
-        approvedReceivers.push(receiver);
+    function addApprovedReceiver(address receiver) external isOwner {
+        require(!approvedReceivers[receiver], "Receiver already approved");
+        approvedReceivers[receiver] = true;
+        unchecked { approvedReceiversCount++; }
     }
 
-    function changeOwner(address newOwner) public isOwner {
+    function removeApprovedReceiver(address receiver) external isOwner {
+        require(approvedReceivers[receiver], "Receiver not approved");
+        approvedReceivers[receiver] = false;
+        unchecked { approvedReceiversCount--; }
+    }
+
+    function isApprovedReceiver(address receiver) public view returns (bool) {
+        return approvedReceivers[receiver];
+    }
+
+    function getApprovedReceiversCount() public view returns (uint256) {
+        return approvedReceiversCount;
+    }
+
+    function changeOwner(address newOwner) external isOwner {
         emit OwnerSet(membraneHostOwner, newOwner);
         membraneHostOwner = newOwner;
     }
 
-    function setServerPublicKey(string calldata newKey) public isOwner() {
-        emit KeyChange(serverPublicKey, newKey, msg.sender);
-        serverPublicKey = newKey;
+    function setServerPublicKey(bytes calldata newKey) external isOwner {
+        emit KeyChange(serverPublicKey, string(newKey), msg.sender);
+        serverPublicKey = string(newKey);
     }
 
-    modifier zeroKnowledgeProof() {
-        bool isVerified = false;
-        
-        uint p = 10111; 
-        uint g = 2;     // A number between 1 and p-1.
-
-        uint x = 56;    // Hidden, disputed number
-        uint y = x**g;
-
-        uint claim = (27*x + 37*y) % p;         // These would usually be random constants, but are set to show deterministic values
-        uint encrypted_claim = (g**claim) % p;
-
-        uint mul = (((g**x) % p) * ((g**y) % p)) % p;
-
-        if (encrypted_claim == mul) {
-            isVerified = true;
-        }
-        require(isVerified, "Zero Knowledge Proof not verified.");
-        _;
-    }
 
     function getServerPublicKey() external view returns (string memory){
         return serverPublicKey;       // Return the address for public key encryption
     }
 
-    function commit(bytes memory _encryptedData, bytes calldata _encryptedApprovedRecipients) external {
+    function commit(bytes calldata _encryptedData, bytes calldata _encryptedApprovedRecipients) external {
         userData.hashedApprovedRecipients = _encryptedApprovedRecipients;
         userData.hashedData = _encryptedData;
         emit DataSubmit(msg.sender, userData.hashedData);
-        commitReceived = true;
+        commitReceived = 1;
     }
 
     function checkCommitReceived() external view returns (bool) {
-        return commitReceived;
+        return commitReceived == 1;
     }
 
-    function reveal(bytes calldata encryptedPayload) external view commitIsReceived() {
-        bytes32 hashData = keccak256(abi.encodePacked(encryptedPayload));
-        require(areBytesEqual(userData.hashedData, bytes32ToBytes(hashData)), "Hashed data not equivalent. Aborting.");
+    function reveal(bytes calldata encryptedPayload) external view {
+        require(commitReceived == 1, "Commit not yet received.");
+        bytes32 hashData = keccak256(encryptedPayload);
+        require(keccak256(userData.hashedData) == keccak256(abi.encodePacked(hashData)), "Hashed data not equivalent. Aborting.");
         sendDataToServer(encryptedPayload);
     }
 
     function sendDataToServer(bytes memory _encryptedPayload) private view isOwner() {
-        // Upload to file
         Chainlink.Request memory req = buildChainlinkRequest(jobId, address(this), this.dataTransferCallback.selector);
-        req.add("url", "https://ipfs.example.com/api");     // SET API HERE
+        req.add("url", "QmXXXXX");     // SET Qm Hash here
         req.add("method", "PUT");
         req.add("body", string(_encryptedPayload));
         // sendChainlinkRequest(req, fee);      Results in error unless chainlink node is set up.
     }
 
-    function canAccessData(address requester) private isOwner() zeroKnowledgeProof() {
-        bool canAccess = false;
-        for (uint i = 0; i < approvedReceivers.length; i++) {
-            if (approvedReceivers[i] == requester) {
-                canAccess = true;
-            } 
-        }
-        Chainlink.Request memory req = buildChainlinkRequest(jobId, address(this), this.dataToInstitutionCallback.selector);
-        req.add("url", "https://ipfs.example.com/api");     // SET API HERE
-        req.add("method", "PUT");
-        if (canAccess) {
-            req.add("body", "Approved");
-        } else {
-            req.add("body", "Denied");
-        }
+    function zeroKnowledgeProof() internal view returns (bool) {
+        uint p = 10111; 
+        uint g = 2;
+        uint x = 56;
+        uint y = x**g;
 
-        onetimekey.issueKey(requester, generateRandomKey());
-        // sendChainlinkRequest(req, fee);      Results in error unless chainlink node is set up.
+        uint claim = (27*x + 37*y) % p;
+        uint encrypted_claim = (g**claim) % p;
 
+        uint mul = (((g**x) % p) * ((g**y) % p)) % p;
+
+        return encrypted_claim == mul;
     }
+
+    function canAccessData(address requester) private {
+        require(msg.sender == membraneHostOwner, "Only the owner has access to this function");
+        require(zeroKnowledgeProof(), "Zero Knowledge Proof not verified.");
+        
+        bool canAccess = approvedReceivers[requester];
+        
+        Chainlink.Request memory req = buildChainlinkRequest(jobId, address(this), this.dataToInstitutionCallback.selector);
+        req.add("url", "QMXXXXX"); //SET QM Hash
+        req.add("method", "PUT");
+        req.add("body", canAccess ? "Approved" : "Denied");
+
+        bytes32 randomKey = keccak256(abi.encodePacked(block.timestamp, block.prevrandao, blockhash(block.number - 1)));
+        onetimekey.issueKey(requester, randomKey);
+        // sendChainlinkRequest(req, fee);
+    } 
 
     function dataTransferCallback() public {
         emit DataTransferReceipt(msg.sender, "Success!");
@@ -154,28 +160,4 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
         emit DataToInstitutionReceipt(msg.sender, "Success!");
     }
 
-    function bytes32ToBytes(bytes32 data) public pure returns (bytes memory) {
-        bytes memory result = new bytes(32);
-        assembly {
-            mstore(add(result, 32), data)
-        }
-        return result;
-    }
-
-    function areBytesEqual(bytes memory a, bytes memory b) public pure returns (bool) {
-        if (a.length != b.length) {
-            return false;
-        }
-        for (uint i = 0; i < a.length; i++) {
-            if (a[i] != b[i]) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    function generateRandomKey() public view returns (bytes32) {
-        bytes32 randomKey = keccak256(abi.encodePacked(block.timestamp, block.difficulty, blockhash(block.number - 1)));
-        return randomKey;
-    }
- }
+}
