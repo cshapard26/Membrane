@@ -116,7 +116,7 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
 
     function sendDataToServer(bytes memory _encryptedPayload) private view isOwner() {
         Chainlink.Request memory req = buildChainlinkRequest(jobId, address(this), this.dataTransferCallback.selector);
-        req.add("url", "QmXXXXX");     // SET Qm Hash here
+        req.add("url", "QmXXXXXXX");     // SET QM Hash here
         req.add("method", "PUT");
         req.add("body", string(_encryptedPayload));
         // sendChainlinkRequest(req, fee);      Results in error unless chainlink node is set up.
@@ -143,7 +143,7 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
         bool canAccess = approvedReceivers[requester];
         
         Chainlink.Request memory req = buildChainlinkRequest(jobId, address(this), this.dataToInstitutionCallback.selector);
-        req.add("url", "QMXXXXX"); //SET QM Hash
+        req.add("url", "QmXXXXXXX");     // SET QM Hash here
         req.add("method", "PUT");
         req.add("body", canAccess ? "Approved" : "Denied");
 
@@ -160,4 +160,28 @@ contract MembraneCrowdsourcing is ChainlinkClient  {
         emit DataToInstitutionReceipt(msg.sender, "Success!");
     }
 
-}
+    function bytes32ToBytes(bytes32 data) public pure returns (bytes memory) {
+        bytes memory result = new bytes(32);
+        assembly {
+            mstore(add(result, 32), data)
+        }
+        return result;
+    }
+
+    function areBytesEqual(bytes memory a, bytes memory b) public pure returns (bool) {
+        if (a.length != b.length) {
+            return false;
+        }
+        for (uint i = 0; i < a.length; i++) {
+            if (a[i] != b[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function generateRandomKey() public view returns (bytes32) {
+        bytes32 randomKey = keccak256(abi.encodePacked(block.timestamp, block.prevrandao, blockhash(block.number - 1)));
+        return randomKey;
+    }
+ }
