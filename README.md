@@ -1,5 +1,5 @@
 # Membrane
-## A solution to data security in crowdsourcing wireless data
+## A solution to secure real-time sensor data crowdsourcing 
 
 ```mermaid
 sequenceDiagram
@@ -37,3 +37,4 @@ sequenceDiagram
 	end
 
 ```
+## A conference paper is currently in the works. Be on the lookout for it in Q1 2025!
