@@ -16,10 +16,12 @@ contract OneTimeKey {
         owner = msg.sender;
     }
 
+
     modifier onlyOwner() {
         require(msg.sender == owner, "Only the owner can issue keys");
         _;
     }
+
 
     function issueKey(address _to, bytes32 _key) public onlyOwner {
         require(keys[_to] == 0, "Key already issued");
@@ -28,6 +30,7 @@ contract OneTimeKey {
         emit KeyIssued(_to, _key);
 
     }
+
 
     function useKey(bytes32 _key) public {
         bool keyInList = false;
@@ -46,9 +49,11 @@ contract OneTimeKey {
 
     }
 
+
     function getKeyStatus(address _user) public view returns (bool) {
         return keyUsed[keys[_user]];
     }
+
 
     function displayKey(address _user) public view returns (bytes32) {
         return keys[_user];
